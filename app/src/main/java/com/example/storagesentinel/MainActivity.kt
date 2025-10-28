@@ -325,37 +325,32 @@ fun JunkCategorySummary(
 
 @Composable
 fun PostCleanSummary(cleanedItems: List<JunkItem>, onFinish: () -> Unit) {
-    val totalCleanedSize = cleanedItems.sumOf { it.sizeBytes }
-    val totalCleanedCount = cleanedItems.size
-
     Column(
-        modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Text("Clean Complete!", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Reclaimed: ${formatBytes(totalCleanedSize)}", style = MaterialTheme.typography.titleLarge)
-        Text("Removed $totalCleanedCount items", style = MaterialTheme.typography.bodyMedium)
-        Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = onFinish) {
+        Spacer(modifier = Modifier.height(8.dp))
+        val totalSize = cleanedItems.sumOf { it.sizeBytes }
+        Text(
+            "Successfully removed ${cleanedItems.size} items, freeing up ${formatBytes(totalSize)}.",
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onFinish) { // The parameter name now matches
             Text("Finish")
         }
     }
 }
 
 private fun startScan(
-    scope: CoroutineScope,
-    scannerService: ScannerService,
+    scope: CoroutineScope,scannerService: ScannerService,
     onResultsReady: (Map<JunkType, List<JunkItem>>) -> Unit
 ) {
     scope.launch {
-        try {
             val results = scannerService.startFullScan()
+            // This sends the results back to the ScannerScreen to be displayed
             onResultsReady(results)
-        } catch (e: Exception) {
-            println("Scan Error: ${e.message}")
-        }
     }
 }
 
@@ -363,17 +358,23 @@ private fun startClean(
     scope: CoroutineScope,
     scannerService: ScannerService,
     itemsToClean: List<JunkItem>,
-    onProgress: (JunkType) -> Unit,
+    onProgress: (JunkType?) -> Unit,
     onComplete: (List<String>) -> Unit
 ) {
     scope.launch {
-        val errors = mutableListOf<String>()
-        val groupedItems = itemsToClean.groupBy { it.type }
-
-        for ((type, items) in groupedItems) {
+        // This loop is for the UI, to show the user which category is being cleaned.
+        val junkTypes = itemsToClean.map { it.type }.distinct()
+        for (type in junkTypes) {
             onProgress(type)
-            errors.addAll(scannerService.deleteJunkItems(items))
+            // A small delay helps the UI update smoothly.
+            kotlinx.coroutines.delay(400)
         }
+        onProgress(null) // Signal that per-category progress is done.
+
+        // This calls the real deletion logic in your service.
+        val errors = scannerService.deleteJunkItems(itemsToClean)
+
+        // This sends any errors back to the UI to be shown as a Toast.
         onComplete(errors)
     }
 }
