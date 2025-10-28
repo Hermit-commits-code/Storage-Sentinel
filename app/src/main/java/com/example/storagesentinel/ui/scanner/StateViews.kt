@@ -2,14 +2,20 @@ package com.example.storagesentinel.ui.scanner
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme.typography
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -21,7 +27,7 @@ import com.example.storagesentinel.util.formatBytes
 
 @Composable
 fun ReadyStateView(onScanClick: () -> Unit, onCreateDummyFilesClick: () -> Unit) {
-    Text("Ready to reclaim your storage.", style = typography.titleLarge)
+    Text("Ready to reclaim your storage.", style = MaterialTheme.typography.titleLarge)
     Spacer(modifier = Modifier.height(32.dp))
     Button(onClick = onScanClick, modifier = Modifier.fillMaxWidth(0.8f)) {
         Text("Start Scan")
@@ -51,7 +57,7 @@ fun CleaningStateView(category: String?) {
 }
 
 @Composable
-fun PostCleanSummary(cleanedItems: List<JunkItem>, onFinish: () -> Unit) {
+fun PostCleanSummary(cleanedItems: List<JunkItem>, onFinish: () -> Unit, onExportReport: () -> Unit) {
     val totalCleanedSize = cleanedItems.sumOf { it.sizeBytes }
     val totalCleanedCount = cleanedItems.size
 
@@ -60,11 +66,22 @@ fun PostCleanSummary(cleanedItems: List<JunkItem>, onFinish: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Clean Complete!", style = typography.headlineMedium)
-        Spacer(modifier = Modifier.height(16.dp))
-        Text("Reclaimed: ${formatBytes(totalCleanedSize)}", style = typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Removed $totalCleanedCount items", style = typography.bodyMedium)
-        Spacer(modifier = Modifier.height(32.dp))
-        Button(onClick = onFinish) { Text("Finish") }
+        Icon(
+            imageVector = Icons.Default.CheckCircle,
+            contentDescription = "Success",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(128.dp)
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text("Clean Complete!", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Reclaimed: ${formatBytes(totalCleanedSize)}", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text("Removed $totalCleanedCount items", style = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.height(48.dp))
+        Row {
+            OutlinedButton(onClick = onExportReport) { Text("Export Report") }
+            Spacer(modifier = Modifier.padding(horizontal = 8.dp))
+            Button(onClick = onFinish) { Text("Finish") }
+        }
     }
 }

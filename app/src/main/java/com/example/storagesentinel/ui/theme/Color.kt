@@ -2,18 +2,16 @@ package com.example.storagesentinel.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// This file defines the specific colors that our app will use.
-// It's good practice to define all your app's colors in one place.
-// This makes it easy to change the color scheme later without hunting through code.
+// New "Monochrome & Accent" Palette
+val AccentOrange = Color(0xFFFFA500)
+val DangerRed = Color(0xFFB00020)
 
-// These are the colors for the app's Dark Theme.
-// The names are based on the Material Design color system.
-// The values are hexadecimal color codes (e.g., 0xFFD0BCFF is a light purple).
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// Dark Theme (High Contrast)
+val DarkBackground = Color(0xFF121212) // Standard Material Dark Background
+val DarkSurface = Color(0xFF1E1E1E)    // Slightly Lighter Surface
+val DarkOnSurface = Color(0xFFFFFFFF)  // Pure White for text
 
-// These are the colors for the app's Light Theme.
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+// Light Theme (Standard)
+val LightBackground = Color(0xFFFFFFFF)
+val LightSurface = Color(0xFFF2F2F2)
+val LightOnSurface = Color(0xFF000000)

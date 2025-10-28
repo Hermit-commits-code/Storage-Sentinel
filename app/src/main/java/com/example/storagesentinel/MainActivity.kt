@@ -36,8 +36,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.storagesentinel.ui.components.ConfirmationDialog
+import com.example.storagesentinel.ui.components.ProUpgradeDialog
 import com.example.storagesentinel.ui.scanner.CleaningStateView
 import com.example.storagesentinel.ui.scanner.DetailScreen
+import com.example.storagesentinel.ui.scanner.DuplicateFilesScreen
 import com.example.storagesentinel.ui.scanner.PostCleanSummary
 import com.example.storagesentinel.ui.scanner.ReadyStateView
 import com.example.storagesentinel.ui.scanner.ResultsDisplay
@@ -45,6 +47,7 @@ import com.example.storagesentinel.ui.scanner.ScanningStateView
 import com.example.storagesentinel.ui.settings.SettingsScreen
 import com.example.storagesentinel.ui.theme.StorageSentinelTheme
 import dagger.hilt.android.AndroidEntryPoint
+import java.io.File
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -69,11 +72,8 @@ fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
     val settingsLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        // After returning from settings, check the permission status again.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             viewModel.onPermissionResult(granted = Environment.isExternalStorageManager())
-        } else {
-            viewModel.onPermissionResult(granted = true) // On older versions, permission is granted at install time
         }
     }
 
@@ -91,7 +91,6 @@ fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
         }
     }
 
-    // Effect to show toasts for cleaning errors
     LaunchedEffect(uiState.cleaningErrors) {
         if (uiState.cleaningErrors.isNotEmpty()) {
             uiState.cleaningErrors.forEach {
@@ -105,6 +104,13 @@ fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
         ConfirmationDialog(
             onConfirm = { viewModel.onCleanRequest() },
             onDismiss = { viewModel.onDismissConfirmDialog() }
+        )
+    }
+
+    if (uiState.showProUpgradeDialog) {
+        ProUpgradeDialog(
+            onConfirm = { viewModel.onUpgradeToPro() },
+            onDismiss = { viewModel.onDismissProUpgradeDialog() }
         )
     }
 
@@ -127,7 +133,22 @@ fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (uiState.isShowingSettings) {
-                SettingsScreen(onBack = { viewModel.onHideSettings() })
+                SettingsScreen(
+                    onBack = { viewModel.onHideSettings() },
+                    ignoreList = uiState.ignoreList,
+                    onRemoveFromIgnoreList = { viewModel.onRemoveFromIgnoreList(it) }
+                )
+            } else if (uiState.isShowingDuplicates) {
+                val duplicateFiles = uiState.scanResults[JunkType("Duplicate Files")]
+                    ?.groupBy { it.contentHash!! } 
+                    ?: emptyMap()
+                DuplicateFilesScreen(
+                    duplicateFiles = duplicateFiles,
+                    onBack = { viewModel.onBackFromDetails() },
+                    onItemSelectionChanged = { item, isSelected ->
+                        viewModel.onItemSelectionChanged(JunkType("Duplicate Files"), item, isSelected)
+                    }
+                )
             } else {
                 uiState.viewingDetailsFor?.let { junkType ->
                     val items = uiState.scanResults[junkType] ?: emptyList()
@@ -162,13 +183,27 @@ fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
                         ScanState.FINISHED -> ResultsDisplay(
                             results = uiState.scanResults,
                             selectedCategories = uiState.selectionToClean,
+                            isProUser = uiState.isProUser,
                             onCleanClick = { viewModel.onShowConfirmDialog() },
                             onCategoryClick = { viewModel.onCategoryClick(it) },
-                            onCategorySelectionChanged = { jt, isSelected -> viewModel.onCategorySelectionChanged(jt, isSelected) }
+                            onCategorySelectionChanged = { jt, isSelected -> viewModel.onCategorySelectionChanged(jt, isSelected) },
+                            onProUpgradeClick = { viewModel.onShowProUpgradeDialog() }
                         )
                         ScanState.CLEAN_COMPLETE -> PostCleanSummary(
                             cleanedItems = uiState.cleanedItems,
-                            onFinish = { viewModel.onFinishCleaning() }
+                            onFinish = { viewModel.onFinishCleaning() },
+                            onExportReport = {
+                                val report = viewModel.getReportContent()
+                                try {
+                                    val documentsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+                                    documentsDir.mkdirs()
+                                    val reportFile = File(documentsDir, "scan_report.txt")
+                                    reportFile.writeText(report)
+                                    Toast.makeText(context, "Report saved to Documents folder", Toast.LENGTH_LONG).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Failed to save report: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
                         )
                     }
                 }

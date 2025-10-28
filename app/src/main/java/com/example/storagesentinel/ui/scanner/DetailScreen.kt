@@ -40,11 +40,11 @@ fun DetailScreen(
 ) {
     var itemToIgnore by remember { mutableStateOf<JunkItem?>(null) }
 
-    if (itemToIgnore != null) {
+    itemToIgnore?.let { item ->
         IgnoreItemDialog(
-            item = itemToIgnore!!,
+            item = item,
             onConfirm = {
-                onAddToIgnoreList(itemToIgnore!!)
+                onAddToIgnoreList(item)
                 itemToIgnore = null
             },
             onDismiss = { itemToIgnore = null }

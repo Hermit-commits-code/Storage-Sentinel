@@ -22,7 +22,10 @@ object AppModule {
     }
 
     @Provides
-    fun provideScannerService(@ApplicationContext context: Context, settingsManager: SettingsManager): ScannerService {
+    fun provideScannerService(
+        @ApplicationContext context: Context,
+        settingsManager: SettingsManager
+    ): ScannerService {
         return ScannerService(Environment.getExternalStorageDirectory(), context, settingsManager)
     }
 }

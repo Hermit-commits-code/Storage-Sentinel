@@ -3,6 +3,7 @@ package com.example.storagesentinel
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Environment
 import com.example.storagesentinel.data.SettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -28,7 +29,7 @@ class ScannerService(
             val ignoreList = settingsManager.getIgnoreList()
 
             scanDirectory(rootDirectory, allItems, ignoreList, onProgress)
-            allItems.addAll(findResidualData(ignoreList))
+            allItems.addAll(findResidualData(ignoreList, onProgress))
             allItems.addAll(findLargeFiles(rootDirectory, ignoreList, onProgress))
             allItems.addAll(findDuplicateFiles(rootDirectory, ignoreList, onProgress))
 
@@ -105,7 +106,7 @@ class ScannerService(
         }
     }
 
-    private fun findResidualData(ignoreList: Set<String>): List<JunkItem> {
+    private fun findResidualData(ignoreList: Set<String>, onProgress: (String) -> Unit): List<JunkItem> {
         val residualItems = mutableListOf<JunkItem>()
         val pm = context.packageManager
         val installedPackages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -115,19 +116,30 @@ class ScannerService(
             pm.getInstalledPackages(PackageManager.GET_META_DATA)
         }
         val installedPackageNames = installedPackages.map { it.packageName }.toSet()
-        val dataDir = File(rootDirectory, "Android/data")
-        if (!dataDir.exists() || !dataDir.isDirectory) return emptyList()
 
-        val appDataFolders = dataDir.listFiles { file -> file.isDirectory } ?: return emptyList()
+        val directoriesToScan = listOf(
+            File(rootDirectory, "Android/data"),
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
+            rootDirectory
+        ).distinct()
 
-        for (folder in appDataFolders) {
-            if (ignoreList.contains(folder.absolutePath)) continue
-            val packageName = folder.name
-            if (!installedPackageNames.contains(packageName)) {
-                val folderSize = folder.walkTopDown().sumOf { it.length() }
-                residualItems.add(JunkItem(folder.absolutePath, folderSize, residualDataType))
+        directoriesToScan.forEach { dir ->
+            onProgress(dir.absolutePath)
+            if (dir.exists() && dir.isDirectory) {
+                val appDataFolders = dir.listFiles { file -> file.isDirectory } ?: return@forEach
+                for (folder in appDataFolders) {
+                    if (ignoreList.contains(folder.absolutePath)) continue
+                    val packageName = folder.name
+                    if (installedPackageNames.none { name -> packageName.contains(name, ignoreCase = true) }) {
+                        val folderSize = folder.walkTopDown().sumOf { it.length() }
+                        if (folderSize > 0) {
+                            residualItems.add(JunkItem(folder.absolutePath, folderSize, residualDataType))
+                        }
+                    }
+                }
             }
         }
+
         return residualItems
     }
 
@@ -155,28 +167,40 @@ class ScannerService(
         ignoreList: Set<String>,
         onProgress: (String) -> Unit
     ): List<JunkItem> {
-        val duplicates = mutableListOf<JunkItem>()
+        val allDuplicates = mutableListOf<JunkItem>()
         val filesBySize = mutableMapOf<Long, MutableList<File>>()
 
         directory.walkTopDown().onEnter { dir ->
             onProgress(dir.absolutePath)
             !ignoreList.contains(dir.absolutePath)
         }.forEach { file ->
-            if (file.isFile && !ignoreList.contains(file.absolutePath)) {
+            if (file.isFile && file.length() > 0 && !ignoreList.contains(file.absolutePath)) {
                 filesBySize.getOrPut(file.length()) { mutableListOf() }.add(file)
             }
         }
 
         filesBySize.values.filter { it.size > 1 }.forEach { potentialDuplicates ->
             val filesByHash = potentialDuplicates.groupBy { getFileHash(it) }
+
             filesByHash.values.filter { it.size > 1 }.forEach { duplicateGroup ->
-                // Mark all but the first file as a duplicate
-                duplicateGroup.drop(1).forEach {
-                    duplicates.add(JunkItem(it.absolutePath, it.length(), duplicateFilesType, isSelected = false))
+                val sortedGroup = duplicateGroup.sortedBy { it.lastModified() }
+                val contentHash = getFileHash(sortedGroup.first())
+
+                sortedGroup.forEachIndexed { index, file ->
+                    val isSelected = index != 0 // Keep the oldest, select the rest
+                    allDuplicates.add(
+                        JunkItem(
+                            path = file.absolutePath,
+                            sizeBytes = file.length(),
+                            type = duplicateFilesType,
+                            isSelected = isSelected,
+                            contentHash = contentHash
+                        )
+                    )
                 }
             }
         }
-        return duplicates
+        return allDuplicates
     }
 
     private fun getFileHash(file: File): String {

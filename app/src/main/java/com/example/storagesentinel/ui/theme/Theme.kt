@@ -16,32 +16,36 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = AccentOrange,
+    secondary = AccentOrange,
+    tertiary = DangerRed,
+    background = DarkBackground,
+    surface = DarkSurface,
+    onPrimary = DarkBackground, // High contrast for text on buttons
+    onSecondary = DarkBackground,
+    onTertiary = DarkBackground,
+    onBackground = DarkOnSurface,
+    onSurface = DarkOnSurface,
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = AccentOrange,
+    secondary = AccentOrange,
+    tertiary = DangerRed,
+    background = LightBackground,
+    surface = LightSurface,
+    onPrimary = DarkBackground,
+    onSecondary = LightOnSurface,
+    onTertiary = LightOnSurface,
+    onBackground = LightOnSurface,
+    onSurface = LightOnSurface,
 )
 
 @Composable
 fun StorageSentinelTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
@@ -57,10 +61,7 @@ fun StorageSentinelTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            // Set status bar to transparent for edge-to-edge display
-            @Suppress("DEPRECATION")
-            window.statusBarColor = colorScheme.primary.toArgb()
-            // Ensure status bar icons are visible against the app bar
+            window.statusBarColor = colorScheme.background.toArgb()
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
         }
     }

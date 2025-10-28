@@ -1,5 +1,7 @@
 package com.example.storagesentinel.ui.scanner
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,53 +9,79 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.storagesentinel.JunkItem
 import com.example.storagesentinel.JunkType
+import com.example.storagesentinel.ui.theme.FileCopy
+import com.example.storagesentinel.ui.theme.Folder
+import com.example.storagesentinel.ui.theme.Note
+import com.example.storagesentinel.ui.theme.Science
 import com.example.storagesentinel.util.formatBytes
 
 @Composable
 fun ResultsDisplay(
     results: Map<JunkType, List<JunkItem>>,
     selectedCategories: Set<JunkType>,
+    isProUser: Boolean,
     onCleanClick: () -> Unit,
     onCategoryClick: (JunkType) -> Unit,
-    onCategorySelectionChanged: (JunkType, Boolean) -> Unit
+    onCategorySelectionChanged: (JunkType, Boolean) -> Unit,
+    onProUpgradeClick: () -> Unit
 ) {
-    val totalJunkCount = results.values.sumOf { list -> list.count { it.isSelected } }
-    val totalJunkSize = results.values.flatten().filter { it.isSelected }.sumOf { it.sizeBytes }
+    val itemsToClean = results.filterKeys { it in selectedCategories }.values.flatten()
+    val totalSelectedCount = itemsToClean.size
+    val totalSelectedSize = itemsToClean.sumOf { it.sizeBytes }
+    val totalFoundSize = results.values.flatten().sumOf { it.sizeBytes }
 
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Scan Complete!", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Selected for Cleaning: ${formatBytes(totalJunkSize)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Across $totalJunkCount items", style = MaterialTheme.typography.bodyMedium)
+        Text("Found ${formatBytes(totalFoundSize)} of junk", style = MaterialTheme.typography.titleSmall)
+        Spacer(modifier = Modifier.height(16.dp))
+        Text("Selected for Cleaning: ${formatBytes(totalSelectedSize)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        Text("Across $totalSelectedCount items", style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(24.dp))
 
         LazyColumn(modifier = Modifier.weight(1f)) {
             val filtered = results.filter { it.value.isNotEmpty() }
             items(filtered.keys.toList()) { key ->
+                val isLocked = key.label in listOf("Residual App Data", "Duplicate Files")
                 JunkCategorySummary(
                     categoryName = key.label,
                     items = filtered[key] ?: emptyList(),
                     totalSize = (filtered[key] ?: emptyList()).sumOf { it.sizeBytes },
                     isSelected = selectedCategories.contains(key),
-                    onSelectionChange = { isSelected -> onCategorySelectionChanged(key, isSelected) },
-                    onCardClick = { onCategoryClick(key) }
+                    isLocked = isLocked && !isProUser,
+                    onCardClick = { 
+                        if (isLocked && !isProUser) {
+                            onProUpgradeClick()
+                        } else {
+                            onCategoryClick(key)
+                        }
+                    },
+                    onCardLongPress = { 
+                        if (isLocked && !isProUser) {
+                            onProUpgradeClick()
+                        } else {
+                            onCategorySelectionChanged(key, !selectedCategories.contains(key))
+                        }
+                    }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -64,7 +92,7 @@ fun ResultsDisplay(
             Button(
                 onClick = onCleanClick,
                 modifier = Modifier.fillMaxWidth(),
-                enabled = totalJunkCount > 0
+                enabled = totalSelectedCount > 0
             ) {
                 Text("Clean Selected")
             }
@@ -79,27 +107,61 @@ fun JunkCategorySummary(
     items: List<JunkItem>,
     totalSize: Long,
     isSelected: Boolean,
-    onSelectionChange: (Boolean) -> Unit,
-    onCardClick: () -> Unit
+    isLocked: Boolean,
+    onCardClick: () -> Unit,
+    onCardLongPress: () -> Unit
 ) {
     val itemCount = items.size
+    val cardColors = if (isSelected) {
+        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+    } else {
+        CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    }
+
+    val border = if (isSelected) {
+        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+    } else {
+        BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    }
+
+    val icon = when (categoryName) {
+        "Empty Folders" -> Icons.Default.Folder
+        "Zero-Byte Files" -> Icons.Default.Note
+        "Residual App Data" -> Icons.Default.Science
+        "Duplicate Files" -> Icons.Default.FileCopy
+        else -> Icons.Default.Folder // Fallback icon
+    }
 
     Card(
-        onClick = onCardClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onCardClick() },
+                    onLongPress = { onCardLongPress() }
+                )
+            },
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = cardColors,
+        border = border
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = isSelected, onCheckedChange = onSelectionChange)
-                Spacer(modifier = Modifier.padding(start = 8.dp))
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(40.dp))
+            Spacer(modifier = Modifier.padding(start = 16.dp))
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                Row {
                     Text(text = categoryName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(text = "$itemCount items found", style = MaterialTheme.typography.bodySmall)
+                    if (isLocked) {
+                        Spacer(modifier = Modifier.padding(start = 8.dp))
+                        Text("(PRO)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
+                    }
                 }
-                Text(text = formatBytes(totalSize), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Text(text = "$itemCount items found", style = MaterialTheme.typography.bodySmall)
             }
+            Text(text = formatBytes(totalSize), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
         }
     }
 }

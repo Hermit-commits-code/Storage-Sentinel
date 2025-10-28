@@ -3,6 +3,7 @@ package com.example.storagesentinel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.storagesentinel.data.SettingsManager
+import com.example.storagesentinel.util.ReportGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +16,7 @@ data class ScannerUiState(
     val scanState: ScanState = ScanState.READY,
     val scanResults: Map<JunkType, List<JunkItem>> = emptyMap(),
     val showConfirmDialog: Boolean = false,
+    val showProUpgradeDialog: Boolean = false,
     val selectionToClean: Set<JunkType> = emptySet(),
     val currentlyCleaning: JunkType? = null,
     val cleanedItems: List<JunkItem> = emptyList(),
@@ -22,19 +24,35 @@ data class ScannerUiState(
     val cleaningErrors: List<String> = emptyList(),
     val isShowingSettings: Boolean = false,
     val currentlyScanningPath: String? = null,
-    val isShowingDuplicates: Boolean = false
+    val isShowingDuplicates: Boolean = false,
+    val ignoreList: Set<String> = emptySet(),
+    val isProUser: Boolean = false
 )
 
 @HiltViewModel
 class ScannerViewModel @Inject constructor(
     private val scannerService: ScannerService,
-    private val settingsManager: SettingsManager
+    private val settingsManager: SettingsManager,
+    private val reportGenerator: ReportGenerator
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScannerUiState())
     val uiState: StateFlow<ScannerUiState> = _uiState.asStateFlow()
 
     private val duplicateFilesType = JunkType("Duplicate Files")
+
+    init {
+        loadInitialState()
+    }
+
+    private fun loadInitialState() {
+        _uiState.update {
+            it.copy(
+                ignoreList = settingsManager.getIgnoreList(),
+                isProUser = settingsManager.getIsProUser()
+            )
+        }
+    }
 
     fun onPermissionResult(granted: Boolean) {
         if (granted) {
@@ -71,6 +89,23 @@ class ScannerViewModel @Inject constructor(
         viewModelScope.launch {
             scannerService.createDummyJunkFiles()
         }
+    }
+
+    fun getReportContent(): String {
+        return reportGenerator.generateReport(uiState.value.cleanedItems)
+    }
+
+    fun onUpgradeToPro() {
+        settingsManager.saveIsProUser(true)
+        _uiState.update { it.copy(isProUser = true, showProUpgradeDialog = false) }
+    }
+
+    fun onShowProUpgradeDialog() {
+        _uiState.update { it.copy(showProUpgradeDialog = true) }
+    }
+
+    fun onDismissProUpgradeDialog() {
+        _uiState.update { it.copy(showProUpgradeDialog = false) }
     }
 
     fun onCategoryClick(junkType: JunkType) {
@@ -129,8 +164,14 @@ class ScannerViewModel @Inject constructor(
     fun onHideSettings() {
         _uiState.update { it.copy(isShowingSettings = false) }
     }
-    
+
     fun onAddToIgnoreList(item: JunkItem) {
         settingsManager.addToIgnoreList(item.path)
+        loadInitialState() // Refresh the list
+    }
+
+    fun onRemoveFromIgnoreList(path: String) {
+        settingsManager.removeFromIgnoreList(path)
+        loadInitialState() // Refresh the list
     }
 }

@@ -11,6 +11,7 @@ class SettingsManager(context: Context) {
         const val KEY_LARGE_FILE_THRESHOLD = "large_file_threshold_mb"
         const val DEFAULT_LARGE_FILE_THRESHOLD = 100L // Default to 100MB
         const val KEY_IGNORE_LIST = "ignore_list"
+        const val KEY_IS_PRO_USER = "is_pro_user"
     }
 
     fun saveLargeFileThreshold(threshold: Long) {
@@ -33,7 +34,27 @@ class SettingsManager(context: Context) {
         }
     }
 
+    fun removeFromIgnoreList(path: String) {
+        val currentList = getIgnoreList().toMutableSet()
+        currentList.remove(path)
+        with(sharedPreferences.edit()) {
+            putStringSet(KEY_IGNORE_LIST, currentList)
+            apply()
+        }
+    }
+
     fun getIgnoreList(): Set<String> {
         return sharedPreferences.getStringSet(KEY_IGNORE_LIST, emptySet()) ?: emptySet()
+    }
+
+    fun saveIsProUser(isPro: Boolean) {
+        with(sharedPreferences.edit()) {
+            putBoolean(KEY_IS_PRO_USER, isPro)
+            apply()
+        }
+    }
+
+    fun getIsProUser(): Boolean {
+        return sharedPreferences.getBoolean(KEY_IS_PRO_USER, false)
     }
 }
