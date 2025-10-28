@@ -15,57 +15,54 @@ class ScannerService(private val rootDirectory: File, private val context: Conte
 
     suspend fun startFullScan(): Map<JunkType, List<JunkItem>> {
         return withContext(Dispatchers.IO) {
-            val emptyFolders = mutableListOf<JunkItem>()
-            val zeroByteFiles = mutableListOf<JunkItem>()
-            scanDirectory(rootDirectory, emptyFolders, zeroByteFiles)
-            val residualFiles = findResidualData()
+            val allItems = mutableListOf<JunkItem>()
 
-            mapOf(
-                emptyFolderType to emptyFolders,
-                zeroByteFileType to zeroByteFiles,
-                residualDataType to residualFiles
-            )
+            // Run the recursive scan and add the results to a single list
+            scanDirectory(rootDirectory, allItems)
+            // Run the residual data scan and add the results
+            allItems.addAll(findResidualData())
+
+            // Group all the found items by their type to create the final map
+            allItems.groupBy { it.type }
         }
     }
 
-    /**
-     * Deletes the files and folders specified in the junkItems list.
-     */
-    suspend fun deleteJunkItems(junkItems: List<JunkItem>): Boolean {
+    suspend fun deleteJunkItems(junkItems: List<JunkItem>): List<String> {
         return withContext(Dispatchers.IO) {
-            var allSucceeded = true
+            val errors = mutableListOf<String>()
             for (item in junkItems) {
                 try {
                     val file = File(item.path)
                     if (file.exists() && !file.deleteRecursively()) {
-                        println("Failed to delete: ${item.path}")
-                        allSucceeded = false
+                        val errorMsg = "Failed to delete: ${item.path}"
+                        println(errorMsg)
+                        errors.add(errorMsg)
                     }
                 } catch (e: Exception) {
-                    println("Error deleting ${item.path}: ${e.message}")
-                    allSucceeded = false
+                    val errorMsg = "Error deleting ${item.path}: ${e.message}"
+                    println(errorMsg)
+                    errors.add(errorMsg)
                 }
             }
-            allSucceeded
+            errors
         }
     }
 
     private fun scanDirectory(
         directory: File,
-        emptyFoldersList: MutableList<JunkItem>,
-        zeroByteFilesList: MutableList<JunkItem>
+        foundItems: MutableList<JunkItem> // A single list to add all findings to
     ) {
         val files = directory.listFiles() ?: return
         if (files.isEmpty()) {
-            emptyFoldersList.add(JunkItem(directory.absolutePath, 0))
+            foundItems.add(JunkItem(directory.absolutePath, 0, emptyFolderType))
             return
         }
         for (file in files) {
             if (file.isDirectory) {
-                scanDirectory(file, emptyFoldersList, zeroByteFilesList)
+                scanDirectory(file, foundItems)
             } else {
                 if (file.length() == 0L) {
-                    zeroByteFilesList.add(JunkItem(file.absolutePath, 0L))
+                    foundItems.add(JunkItem(file.absolutePath, 0L, zeroByteFileType))
                 }
             }
         }
@@ -90,7 +87,7 @@ class ScannerService(private val rootDirectory: File, private val context: Conte
             val packageName = folder.name
             if (!installedPackageNames.contains(packageName)) {
                 val folderSize = folder.walkTopDown().sumOf { it.length() }
-                residualItems.add(JunkItem(folder.absolutePath, folderSize))
+                residualItems.add(JunkItem(folder.absolutePath, folderSize, residualDataType))
             }
         }
         return residualItems

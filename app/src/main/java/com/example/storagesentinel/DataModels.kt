@@ -1,16 +1,14 @@
 package com.example.storagesentinel
 
-// In Kotlin, a "data class" is a simple class used for holding data.
-// The compiler automatically creates useful functions for these classes, like `equals()` and `toString()`.
-// They are perfect for representing simple pieces of data in our app.
-
-// Defines the categories of junk files we can find.
-// For example, one instance of this class could be JunkType("Empty Folders").
-// Using a class for this is safer than just using a String, as it prevents typos.
+/**
+ * A data class representing a category of junk files.
+ */
 data class JunkType(val label: String)
 
-// Represents a single junk file or empty folder found on the device.
-// For example, JunkItem("/sdcard/empty_folder", 0)
-// - path: The full location of the file/folder on the device.
-// - sizeBytes: The size of the file in bytes. For folders, this will be 0.
-data class JunkItem(val path: String, val sizeBytes: Long)
+/**
+ * A data class representing a single junk file or folder found on the device.
+ * @param path The full location of the file/folder on the device.
+ * @param sizeBytes The size of the file in bytes.
+ * @param type The category this junk item belongs to.
+ */
+data class JunkItem(val path: String, val sizeBytes: Long, val type: JunkType)
