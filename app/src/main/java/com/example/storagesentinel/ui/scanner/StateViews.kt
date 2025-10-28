@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
@@ -19,10 +20,16 @@ import com.example.storagesentinel.JunkItem
 import com.example.storagesentinel.util.formatBytes
 
 @Composable
-fun ReadyStateView(onScanClick: () -> Unit) {
+fun ReadyStateView(onScanClick: () -> Unit, onCreateDummyFilesClick: () -> Unit) {
     Text("Ready to reclaim your storage.", style = typography.titleLarge)
     Spacer(modifier = Modifier.height(32.dp))
-    Button(onClick = onScanClick) { Text("Start Scan") }
+    Button(onClick = onScanClick, modifier = Modifier.fillMaxWidth(0.8f)) {
+        Text("Start Scan")
+    }
+    Spacer(modifier = Modifier.height(16.dp))
+    Button(onClick = onCreateDummyFilesClick, modifier = Modifier.fillMaxWidth(0.8f)) {
+        Text("Create Dummy Files (Debug)")
+    }
 }
 
 @Composable

@@ -1,5 +1,6 @@
 package com.example.storagesentinel.ui.scanner
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,8 +15,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme.colorScheme
-import androidx.compose.material3.MaterialTheme.typography
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -24,10 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.storagesentinel.JunkItem
 import com.example.storagesentinel.JunkType
-import java.util.Locale
-import kotlin.math.log10
-import kotlin.math.pow
-import androidx.compose.foundation.layout.Arrangement
+import com.example.storagesentinel.util.formatBytes
 
 @Composable
 fun ResultsDisplay(
@@ -41,10 +38,10 @@ fun ResultsDisplay(
     val totalJunkSize = results.values.flatten().filter { it.isSelected }.sumOf { it.sizeBytes }
 
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Scan Complete!", style = typography.headlineMedium)
+        Text("Scan Complete!", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(8.dp))
-        Text("Selected for Cleaning: ${formatBytes(totalJunkSize)}", style = typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Across $totalJunkCount items", style = typography.bodyMedium)
+        Text("Selected for Cleaning: ${formatBytes(totalJunkSize)}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("Across $totalJunkCount items", style = MaterialTheme.typography.bodyMedium)
         Spacer(modifier = Modifier.height(24.dp))
 
         LazyColumn(modifier = Modifier.weight(1f)) {
@@ -91,26 +88,18 @@ fun JunkCategorySummary(
         onClick = onCardClick,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = isSelected, onCheckedChange = onSelectionChange)
                 Spacer(modifier = Modifier.padding(start = 8.dp))
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                    Text(text = categoryName, style = typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(text = "$itemCount items found", style = typography.bodySmall)
+                    Text(text = categoryName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(text = "$itemCount items found", style = MaterialTheme.typography.bodySmall)
                 }
-                Text(text = formatBytes(totalSize), style = typography.titleMedium, color = colorScheme.primary)
+                Text(text = formatBytes(totalSize), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
     }
-}
-
-@Composable
-fun formatBytes(bytes: Long): String {
-    if (bytes <= 0) return "0 B"
-    val units = listOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (log10(bytes.toDouble()) / log10(1024.0)).toInt()
-    return String.format(Locale.US, "%.1f %s", bytes / 1024.0.pow(digitGroups), units[digitGroups])
 }

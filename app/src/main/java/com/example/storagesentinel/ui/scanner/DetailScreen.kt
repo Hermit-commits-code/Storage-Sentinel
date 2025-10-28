@@ -1,5 +1,6 @@
 package com.example.storagesentinel.ui.scanner
 
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,11 +16,17 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.example.storagesentinel.JunkItem
 import com.example.storagesentinel.JunkType
+import com.example.storagesentinel.ui.components.IgnoreItemDialog
 import com.example.storagesentinel.util.formatBytes
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,8 +35,22 @@ fun DetailScreen(
     junkType: JunkType,
     items: List<JunkItem>,
     onBack: () -> Unit,
-    onItemSelectionChanged: (JunkItem, Boolean) -> Unit
+    onItemSelectionChanged: (JunkItem, Boolean) -> Unit,
+    onAddToIgnoreList: (JunkItem) -> Unit
 ) {
+    var itemToIgnore by remember { mutableStateOf<JunkItem?>(null) }
+
+    if (itemToIgnore != null) {
+        IgnoreItemDialog(
+            item = itemToIgnore!!,
+            onConfirm = {
+                onAddToIgnoreList(itemToIgnore!!)
+                itemToIgnore = null
+            },
+            onDismiss = { itemToIgnore = null }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(title = { Text(junkType.label) }, navigationIcon = {
             TextButton(onClick = onBack) { Text("Back") }
@@ -45,7 +66,8 @@ fun DetailScreen(
                     item = item,
                     onSelectionChange = { isSelected ->
                         onItemSelectionChanged(item, isSelected)
-                    }
+                    },
+                    onLongPress = { itemToIgnore = item }
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -54,11 +76,14 @@ fun DetailScreen(
 }
 
 @Composable
-fun DetailItem(item: JunkItem, onSelectionChange: (Boolean) -> Unit) {
+fun DetailItem(item: JunkItem, onSelectionChange: (Boolean) -> Unit, onLongPress: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
+            .padding(vertical = 8.dp)
+            .pointerInput(Unit) {
+                detectTapGestures(onLongPress = { onLongPress() })
+            },
         verticalAlignment = Alignment.CenterVertically
     ) {
         Checkbox(

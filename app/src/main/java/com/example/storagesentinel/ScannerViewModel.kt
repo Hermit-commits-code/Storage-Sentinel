@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.storagesentinel.data.SettingsManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,7 +19,8 @@ data class ScannerUiState(
     val currentlyCleaning: JunkType? = null,
     val cleanedItems: List<JunkItem> = emptyList(),
     val viewingDetailsFor: JunkType? = null,
-    val cleaningErrors: List<String> = emptyList()
+    val cleaningErrors: List<String> = emptyList(),
+    val isShowingSettings: Boolean = false
 )
 
 class ScannerViewModel : ViewModel() {
@@ -26,6 +28,7 @@ class ScannerViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(ScannerUiState())
     val uiState: StateFlow<ScannerUiState> = _uiState.asStateFlow()
 
+    // This is now pure logic, with no Android dependencies.
     fun onPermissionResult(granted: Boolean, context: Context) {
         if (granted) {
             onScanRequest(context)
@@ -54,6 +57,13 @@ class ScannerViewModel : ViewModel() {
                 _uiState.update { it.copy(cleaningErrors = errors) }
                 onScanRequest(context) // Re-scan
             }
+        }
+    }
+
+    fun createDummyFiles(context: Context) {
+        viewModelScope.launch {
+            val scannerService = ScannerService(Environment.getExternalStorageDirectory(), context)
+            scannerService.createDummyJunkFiles()
         }
     }
 
@@ -100,5 +110,18 @@ class ScannerViewModel : ViewModel() {
 
     fun onErrorsShown() {
         _uiState.update { it.copy(cleaningErrors = emptyList()) }
+    }
+
+    fun onShowSettings() {
+        _uiState.update { it.copy(isShowingSettings = true) }
+    }
+
+    fun onHideSettings() {
+        _uiState.update { it.copy(isShowingSettings = false) }
+    }
+    
+    fun onAddToIgnoreList(context: Context, item: JunkItem) {
+        val settingsManager = SettingsManager(context)
+        settingsManager.addToIgnoreList(item.path)
     }
 }
