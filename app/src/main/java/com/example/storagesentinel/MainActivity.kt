@@ -26,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -33,7 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.storagesentinel.ui.components.ConfirmationDialog
 import com.example.storagesentinel.ui.scanner.CleaningStateView
 import com.example.storagesentinel.ui.scanner.DetailScreen
@@ -43,7 +44,9 @@ import com.example.storagesentinel.ui.scanner.ResultsDisplay
 import com.example.storagesentinel.ui.scanner.ScanningStateView
 import com.example.storagesentinel.ui.settings.SettingsScreen
 import com.example.storagesentinel.ui.theme.StorageSentinelTheme
+import dagger.hilt.android.AndroidEntryPoint
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,32 +62,48 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ScannerScreen(viewModel: ScannerViewModel = viewModel()) {
+fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
     val settingsLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult(),
-        onResult = { viewModel.onPermissionResult(true, context) } // Assume true and re-check
-    )
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        // After returning from settings, check the permission status again.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            viewModel.onPermissionResult(granted = Environment.isExternalStorageManager())
+        } else {
+            viewModel.onPermissionResult(granted = true) // On older versions, permission is granted at install time
+        }
+    }
 
     fun launchPermissionRequest() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (Environment.isExternalStorageManager()) {
-                viewModel.onScanRequest(context)
+                viewModel.onScanRequest()
             } else {
                 val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
                 intent.data = "package:${context.packageName}".toUri()
                 settingsLauncher.launch(intent)
             }
         } else {
-            Toast.makeText(context, "This feature requires Android 11+.", Toast.LENGTH_LONG).show()
+            viewModel.onScanRequest()
+        }
+    }
+
+    // Effect to show toasts for cleaning errors
+    LaunchedEffect(uiState.cleaningErrors) {
+        if (uiState.cleaningErrors.isNotEmpty()) {
+            uiState.cleaningErrors.forEach {
+                Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            }
+            viewModel.onErrorsShown()
         }
     }
 
     if (uiState.showConfirmDialog) {
         ConfirmationDialog(
-            onConfirm = { viewModel.onCleanRequest(context) },
+            onConfirm = { viewModel.onCleanRequest() },
             onDismiss = { viewModel.onDismissConfirmDialog() }
         )
     }
@@ -120,7 +139,7 @@ fun ScannerScreen(viewModel: ScannerViewModel = viewModel()) {
                             viewModel.onItemSelectionChanged(junkType, item, isSelected)
                         },
                         onAddToIgnoreList = { item ->
-                            viewModel.onAddToIgnoreList(context, item)
+                            viewModel.onAddToIgnoreList(item)
                         }
                     )
                 } ?: Column(
@@ -136,9 +155,9 @@ fun ScannerScreen(viewModel: ScannerViewModel = viewModel()) {
                     when (uiState.scanState) {
                         ScanState.READY -> ReadyStateView(
                             onScanClick = { launchPermissionRequest() },
-                            onCreateDummyFilesClick = { viewModel.createDummyFiles(context) }
+                            onCreateDummyFilesClick = { viewModel.createDummyFiles() }
                         )
-                        ScanState.SCANNING -> ScanningStateView()
+                        ScanState.SCANNING -> ScanningStateView(uiState.currentlyScanningPath)
                         ScanState.CLEANING -> CleaningStateView(uiState.currentlyCleaning?.label)
                         ScanState.FINISHED -> ResultsDisplay(
                             results = uiState.scanResults,

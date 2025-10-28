@@ -1,15 +1,15 @@
 package com.example.storagesentinel
 
-import android.content.Context
-import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.storagesentinel.data.SettingsManager
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 data class ScannerUiState(
     val scanState: ScanState = ScanState.READY,
@@ -20,34 +20,41 @@ data class ScannerUiState(
     val cleanedItems: List<JunkItem> = emptyList(),
     val viewingDetailsFor: JunkType? = null,
     val cleaningErrors: List<String> = emptyList(),
-    val isShowingSettings: Boolean = false
+    val isShowingSettings: Boolean = false,
+    val currentlyScanningPath: String? = null,
+    val isShowingDuplicates: Boolean = false
 )
 
-class ScannerViewModel : ViewModel() {
+@HiltViewModel
+class ScannerViewModel @Inject constructor(
+    private val scannerService: ScannerService,
+    private val settingsManager: SettingsManager
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScannerUiState())
     val uiState: StateFlow<ScannerUiState> = _uiState.asStateFlow()
 
-    // This is now pure logic, with no Android dependencies.
-    fun onPermissionResult(granted: Boolean, context: Context) {
+    private val duplicateFilesType = JunkType("Duplicate Files")
+
+    fun onPermissionResult(granted: Boolean) {
         if (granted) {
-            onScanRequest(context)
+            onScanRequest()
         }
     }
 
-    fun onScanRequest(context: Context) {
+    fun onScanRequest() {
         _uiState.update { it.copy(scanState = ScanState.SCANNING) }
         viewModelScope.launch {
-            val scannerService = ScannerService(Environment.getExternalStorageDirectory(), context)
-            val results = scannerService.startFullScan()
-            _uiState.update { it.copy(scanResults = results, scanState = ScanState.FINISHED) }
+            val results = scannerService.startFullScan { path ->
+                _uiState.update { it.copy(currentlyScanningPath = path) }
+            }
+            _uiState.update { it.copy(scanResults = results, scanState = ScanState.FINISHED, currentlyScanningPath = null) }
         }
     }
 
-    fun onCleanRequest(context: Context) {
+    fun onCleanRequest() {
         _uiState.update { it.copy(showConfirmDialog = false, scanState = ScanState.CLEANING, cleaningErrors = emptyList()) }
         viewModelScope.launch {
-            val scannerService = ScannerService(Environment.getExternalStorageDirectory(), context)
             val itemsToClean = _uiState.value.scanResults.filterKeys { it in _uiState.value.selectionToClean }.values.flatten().filter { it.isSelected }
             val errors = scannerService.deleteJunkItems(itemsToClean)
 
@@ -55,24 +62,27 @@ class ScannerViewModel : ViewModel() {
                 _uiState.update { it.copy(cleanedItems = itemsToClean, scanState = ScanState.CLEAN_COMPLETE) }
             } else {
                 _uiState.update { it.copy(cleaningErrors = errors) }
-                onScanRequest(context) // Re-scan
+                onScanRequest() // Re-scan
             }
         }
     }
 
-    fun createDummyFiles(context: Context) {
+    fun createDummyFiles() {
         viewModelScope.launch {
-            val scannerService = ScannerService(Environment.getExternalStorageDirectory(), context)
             scannerService.createDummyJunkFiles()
         }
     }
 
     fun onCategoryClick(junkType: JunkType) {
-        _uiState.update { it.copy(viewingDetailsFor = junkType) }
+        if (junkType == duplicateFilesType) {
+            _uiState.update { it.copy(isShowingDuplicates = true) }
+        } else {
+            _uiState.update { it.copy(viewingDetailsFor = junkType) }
+        }
     }
 
     fun onBackFromDetails() {
-        _uiState.update { it.copy(viewingDetailsFor = null) }
+        _uiState.update { it.copy(viewingDetailsFor = null, isShowingDuplicates = false) }
     }
 
     fun onShowConfirmDialog() {
@@ -120,8 +130,7 @@ class ScannerViewModel : ViewModel() {
         _uiState.update { it.copy(isShowingSettings = false) }
     }
     
-    fun onAddToIgnoreList(context: Context, item: JunkItem) {
-        val settingsManager = SettingsManager(context)
+    fun onAddToIgnoreList(item: JunkItem) {
         settingsManager.addToIgnoreList(item.path)
     }
 }

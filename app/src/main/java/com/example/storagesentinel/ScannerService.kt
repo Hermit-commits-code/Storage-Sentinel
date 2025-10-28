@@ -7,24 +7,30 @@ import com.example.storagesentinel.data.SettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileInputStream
+import java.security.MessageDigest
 
-class ScannerService(private val rootDirectory: File, private val context: Context) {
+class ScannerService(
+    private val rootDirectory: File,
+    private val context: Context, // Context is still needed for PackageManager
+    private val settingsManager: SettingsManager
+) {
 
     private val emptyFolderType = JunkType("Empty Folders")
     private val zeroByteFileType = JunkType("Zero-Byte Files")
     private val residualDataType = JunkType("Residual App Data")
     private val largeFilesType = JunkType("Large Files")
+    private val duplicateFilesType = JunkType("Duplicate Files")
 
-    private val settingsManager = SettingsManager(context)
-
-    suspend fun startFullScan(): Map<JunkType, List<JunkItem>> {
+    suspend fun startFullScan(onProgress: (String) -> Unit): Map<JunkType, List<JunkItem>> {
         return withContext(Dispatchers.IO) {
             val allItems = mutableListOf<JunkItem>()
             val ignoreList = settingsManager.getIgnoreList()
 
-            scanDirectory(rootDirectory, allItems, ignoreList)
+            scanDirectory(rootDirectory, allItems, ignoreList, onProgress)
             allItems.addAll(findResidualData(ignoreList))
-            allItems.addAll(findLargeFiles(rootDirectory, ignoreList))
+            allItems.addAll(findLargeFiles(rootDirectory, ignoreList, onProgress))
+            allItems.addAll(findDuplicateFiles(rootDirectory, ignoreList, onProgress))
 
             allItems.groupBy { it.type }
         }
@@ -50,24 +56,17 @@ class ScannerService(private val rootDirectory: File, private val context: Conte
             errors
         }
     }
-    
+
     suspend fun createDummyJunkFiles() {
         withContext(Dispatchers.IO) {
             try {
-                // Create Empty Folders
                 File(rootDirectory, "EmptyFolder1").mkdir()
                 File(rootDirectory, "My Documents/EmptySubFolder").mkdirs()
-
-                // Create Zero-Byte Files
                 File(rootDirectory, "zero_byte_file.tmp").createNewFile()
                 File(rootDirectory, "Downloads/another_zero.dat").createNewFile()
-
-                // Create a plausible Residual App Data folder
                 File(rootDirectory, "Android/data/com.old.uninstalled.game").mkdirs()
                 File(rootDirectory, "Android/data/com.old.uninstalled.game/cache").mkdirs()
                 File(rootDirectory, "Android/data/com.old.uninstalled.game/files/save.dat").createNewFile()
-
-                // Create a Large File ( > 100MB)
                 val largeFile = File(rootDirectory, "large_test_file.bin")
                 largeFile.outputStream().use { fos ->
                     repeat(101) { // Write 101 MB of dummy data
@@ -83,9 +82,11 @@ class ScannerService(private val rootDirectory: File, private val context: Conte
     private fun scanDirectory(
         directory: File,
         foundItems: MutableList<JunkItem>,
-        ignoreList: Set<String>
+        ignoreList: Set<String>,
+        onProgress: (String) -> Unit
     ) {
         if (ignoreList.contains(directory.absolutePath)) return
+        onProgress(directory.absolutePath)
 
         val files = directory.listFiles() ?: return
         if (files.isEmpty()) {
@@ -95,7 +96,7 @@ class ScannerService(private val rootDirectory: File, private val context: Conte
         for (file in files) {
             if (ignoreList.contains(file.absolutePath)) continue
             if (file.isDirectory) {
-                scanDirectory(file, foundItems, ignoreList)
+                scanDirectory(file, foundItems, ignoreList, onProgress)
             } else {
                 if (file.length() == 0L) {
                     foundItems.add(JunkItem(file.absolutePath, 0L, zeroByteFileType))
@@ -130,15 +131,64 @@ class ScannerService(private val rootDirectory: File, private val context: Conte
         return residualItems
     }
 
-    private fun findLargeFiles(directory: File, ignoreList: Set<String>): List<JunkItem> {
+    private fun findLargeFiles(
+        directory: File,
+        ignoreList: Set<String>,
+        onProgress: (String) -> Unit
+    ): List<JunkItem> {
         val largeFiles = mutableListOf<JunkItem>()
         val threshold = settingsManager.getLargeFileThreshold() * 1024 * 1024 // Convert MB to Bytes
-        directory.walkTopDown().forEach {
+        directory.walkTopDown().onEnter { dir ->
+            onProgress(dir.absolutePath)
+            !ignoreList.contains(dir.absolutePath)
+        }.forEach {
             if (ignoreList.contains(it.absolutePath)) return@forEach
             if (it.isFile && it.length() > threshold) {
                 largeFiles.add(JunkItem(it.absolutePath, it.length(), largeFilesType, isSelected = false))
             }
         }
         return largeFiles
+    }
+
+    private fun findDuplicateFiles(
+        directory: File,
+        ignoreList: Set<String>,
+        onProgress: (String) -> Unit
+    ): List<JunkItem> {
+        val duplicates = mutableListOf<JunkItem>()
+        val filesBySize = mutableMapOf<Long, MutableList<File>>()
+
+        directory.walkTopDown().onEnter { dir ->
+            onProgress(dir.absolutePath)
+            !ignoreList.contains(dir.absolutePath)
+        }.forEach { file ->
+            if (file.isFile && !ignoreList.contains(file.absolutePath)) {
+                filesBySize.getOrPut(file.length()) { mutableListOf() }.add(file)
+            }
+        }
+
+        filesBySize.values.filter { it.size > 1 }.forEach { potentialDuplicates ->
+            val filesByHash = potentialDuplicates.groupBy { getFileHash(it) }
+            filesByHash.values.filter { it.size > 1 }.forEach { duplicateGroup ->
+                // Mark all but the first file as a duplicate
+                duplicateGroup.drop(1).forEach {
+                    duplicates.add(JunkItem(it.absolutePath, it.length(), duplicateFilesType, isSelected = false))
+                }
+            }
+        }
+        return duplicates
+    }
+
+    private fun getFileHash(file: File): String {
+        val md = MessageDigest.getInstance("MD5")
+        FileInputStream(file).use { fis ->
+            val buffer = ByteArray(8192)
+            var bytesRead = fis.read(buffer)
+            while (bytesRead != -1) {
+                md.update(buffer, 0, bytesRead)
+                bytesRead = fis.read(buffer)
+            }
+        }
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 }

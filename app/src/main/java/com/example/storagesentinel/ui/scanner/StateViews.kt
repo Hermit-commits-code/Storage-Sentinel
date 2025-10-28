@@ -33,10 +33,14 @@ fun ReadyStateView(onScanClick: () -> Unit, onCreateDummyFilesClick: () -> Unit)
 }
 
 @Composable
-fun ScanningStateView() {
+fun ScanningStateView(currentlyScanningPath: String?) {
     CircularProgressIndicator(modifier = Modifier.size(64.dp))
     Spacer(modifier = Modifier.height(16.dp))
     Text("Scanning files... This may take a moment.")
+    if (currentlyScanningPath != null) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Currently scanning: $currentlyScanningPath")
+    }
 }
 
 @Composable
