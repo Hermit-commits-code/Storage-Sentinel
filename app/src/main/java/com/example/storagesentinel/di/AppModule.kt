@@ -2,6 +2,7 @@ package com.example.storagesentinel.di
 
 import android.content.Context
 import android.os.Environment
+import androidx.work.WorkManager
 import com.example.storagesentinel.ScannerService
 import com.example.storagesentinel.data.SettingsManager
 import dagger.Module
@@ -19,6 +20,12 @@ object AppModule {
     @Singleton
     fun provideSettingsManager(@ApplicationContext context: Context): SettingsManager {
         return SettingsManager(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideWorkManager(@ApplicationContext context: Context): WorkManager {
+        return WorkManager.getInstance(context)
     }
 
     @Provides

@@ -1,15 +1,23 @@
 package com.example.storagesentinel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.update
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.example.storagesentinel.data.SettingsManager
 import com.example.storagesentinel.util.ReportGenerator
+import com.example.storagesentinel.workers.CleanWorker
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 data class ScannerUiState(
@@ -26,20 +34,24 @@ data class ScannerUiState(
     val currentlyScanningPath: String? = null,
     val isShowingDuplicates: Boolean = false,
     val ignoreList: Set<String> = emptySet(),
-    val isProUser: Boolean = false
+    val isProUser: Boolean = false,
+    val isScheduledCleaningEnabled: Boolean = false,
+    val scheduledCleaningFrequency: String = SettingsManager.DEFAULT_SCHEDULE_FREQUENCY
 )
 
 @HiltViewModel
 class ScannerViewModel @Inject constructor(
+    @ApplicationContext private val context: Context, // For WorkManager
     private val scannerService: ScannerService,
     private val settingsManager: SettingsManager,
-    private val reportGenerator: ReportGenerator
+    private val reportGenerator: ReportGenerator,
+    private val workManager: WorkManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ScannerUiState())
     val uiState: StateFlow<ScannerUiState> = _uiState.asStateFlow()
 
-    private val duplicateFilesType = JunkType("Duplicate Files")
+    private val proCategories = listOf("Residual App Data", "Duplicate Files", "Large Files")
 
     init {
         loadInitialState()
@@ -49,9 +61,26 @@ class ScannerViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 ignoreList = settingsManager.getIgnoreList(),
-                isProUser = settingsManager.getIsProUser()
+                isProUser = settingsManager.getIsProUser(),
+                isScheduledCleaningEnabled = settingsManager.getScheduledCleaningEnabled(),
+                scheduledCleaningFrequency = settingsManager.getScheduledCleaningFrequency()
             )
         }
+    }
+
+    private fun applyDefaultSelections() {
+        val defaultSelectionLabels = settingsManager.getDefaultSelection()
+        val isPro = _uiState.value.isProUser
+
+        val selection = if (defaultSelectionLabels.isEmpty()) {
+            // First run or no defaults saved: select all non-PRO categories by default
+            _uiState.value.scanResults.keys.filter { !proCategories.contains(it.label) }.toSet()
+        } else {
+            // User has saved defaults: load them, but respect the paywall
+            defaultSelectionLabels.map { JunkType(it) }.filter { !proCategories.contains(it.label) || isPro }.toSet()
+        }
+        
+        _uiState.update { it.copy(selectionToClean = selection) }
     }
 
     fun onPermissionResult(granted: Boolean) {
@@ -61,12 +90,13 @@ class ScannerViewModel @Inject constructor(
     }
 
     fun onScanRequest() {
-        _uiState.update { it.copy(scanState = ScanState.SCANNING) }
+        _uiState.update { it.copy(scanState = ScanState.SCANNING, selectionToClean = emptySet()) }
         viewModelScope.launch {
             val results = scannerService.startFullScan { path ->
                 _uiState.update { it.copy(currentlyScanningPath = path) }
             }
-            _uiState.update { it.copy(scanResults = results, scanState = ScanState.FINISHED, currentlyScanningPath = null) }
+            _uiState.update { it.copy(scanResults = results, scanState = ScanState.FINISHED) }
+            applyDefaultSelections()
         }
     }
 
@@ -95,6 +125,11 @@ class ScannerViewModel @Inject constructor(
         return reportGenerator.generateReport(uiState.value.cleanedItems)
     }
 
+    fun onSaveDefaults() {
+        val selectionToSave = uiState.value.selectionToClean.map { it.label }.toSet()
+        settingsManager.saveDefaultSelection(selectionToSave)
+    }
+
     fun onUpgradeToPro() {
         settingsManager.saveIsProUser(true)
         _uiState.update { it.copy(isProUser = true, showProUpgradeDialog = false) }
@@ -108,11 +143,50 @@ class ScannerViewModel @Inject constructor(
         _uiState.update { it.copy(showProUpgradeDialog = false) }
     }
 
-    fun onCategoryClick(junkType: JunkType) {
-        if (junkType == duplicateFilesType) {
-            _uiState.update { it.copy(isShowingDuplicates = true) }
+    fun onScheduledCleaningEnabledChanged(enabled: Boolean) {
+        settingsManager.saveScheduledCleaningEnabled(enabled)
+        _uiState.update { it.copy(isScheduledCleaningEnabled = enabled) }
+        scheduleCleaningWorker()
+    }
+
+    fun onScheduledCleaningFrequencyChanged(frequency: String) {
+        settingsManager.saveScheduledCleaningFrequency(frequency)
+        _uiState.update { it.copy(scheduledCleaningFrequency = frequency) }
+        scheduleCleaningWorker()
+    }
+    
+    private fun scheduleCleaningWorker(){
+        if (uiState.value.isScheduledCleaningEnabled && uiState.value.isProUser) {
+            val repeatInterval = when (uiState.value.scheduledCleaningFrequency) {
+                "Daily" -> 1L
+                "Weekly" -> 7L
+                "Monthly" -> 30L
+                else -> 7L // Default to weekly
+            }
+            val timeUnit = TimeUnit.DAYS
+
+            val workRequest = PeriodicWorkRequestBuilder<CleanWorker>(repeatInterval, timeUnit)
+                .build()
+
+            workManager.enqueueUniquePeriodicWork(
+                "ScheduledCleanUp",
+                ExistingPeriodicWorkPolicy.REPLACE,
+                workRequest
+            )
         } else {
-            _uiState.update { it.copy(viewingDetailsFor = junkType) }
+            workManager.cancelUniqueWork("ScheduledCleanUp")
+        }
+    }
+
+    fun onCategoryClick(junkType: JunkType) {
+        if (junkType.label in proCategories && !uiState.value.isProUser) {
+            onShowProUpgradeDialog()
+        } else {
+             if (junkType.label == "Duplicate Files") {
+                _uiState.update { it.copy(isShowingDuplicates = true) }
+            } else {
+                _uiState.update { it.copy(viewingDetailsFor = junkType) }
+            }
         }
     }
 
@@ -131,6 +205,10 @@ class ScannerViewModel @Inject constructor(
     fun onCategorySelectionChanged(junkType: JunkType, isSelected: Boolean) {
         val newSelection = _uiState.value.selectionToClean.toMutableSet()
         if (isSelected) {
+            if (junkType.label in proCategories && !uiState.value.isProUser) {
+                onShowProUpgradeDialog()
+                return
+            }
             newSelection.add(junkType)
         } else {
             newSelection.remove(junkType)
@@ -146,11 +224,25 @@ class ScannerViewModel @Inject constructor(
             currentItems[itemIndex] = updatedItem
             val newResults = _uiState.value.scanResults + (junkType to currentItems)
             _uiState.update { it.copy(scanResults = newResults) }
+            // Keep category-level selection in sync: if any item in the category is selected, include the category
+            // If none are selected, remove the category from selectionToClean
+            val anySelected = currentItems.any { it.isSelected }
+            val newSelection = _uiState.value.selectionToClean.toMutableSet()
+            if (anySelected) {
+                // Respect PRO gating: do not auto-add PRO categories for free users
+                if (!(junkType.label in proCategories && !_uiState.value.isProUser)) {
+                    newSelection.add(junkType)
+                }
+            } else {
+                newSelection.remove(junkType)
+            }
+            _uiState.update { it.copy(selectionToClean = newSelection) }
         }
     }
 
     fun onFinishCleaning() {
-        _uiState.value = ScannerUiState() // Reset to initial state
+        _uiState.value = ScannerUiState()
+        loadInitialState()
     }
 
     fun onErrorsShown() {
@@ -167,11 +259,11 @@ class ScannerViewModel @Inject constructor(
 
     fun onAddToIgnoreList(item: JunkItem) {
         settingsManager.addToIgnoreList(item.path)
-        loadInitialState() // Refresh the list
+        loadInitialState()
     }
 
     fun onRemoveFromIgnoreList(path: String) {
         settingsManager.removeFromIgnoreList(path)
-        loadInitialState() // Refresh the list
+        loadInitialState()
     }
 }

@@ -74,6 +74,12 @@ class ScannerService(
                         fos.write(ByteArray(1024 * 1024))
                     }
                 }
+
+                // Create duplicate files
+                val duplicateContent = "This is a test file for the duplicate finder."
+                File(rootDirectory, "dummy_duplicate_1.txt").writeText(duplicateContent)
+                File(rootDirectory, "Downloads/dummy_duplicate_2.txt").writeText(duplicateContent)
+
             } catch (e: Exception) {
                 println("Error creating dummy files: ${e.message}")
             }

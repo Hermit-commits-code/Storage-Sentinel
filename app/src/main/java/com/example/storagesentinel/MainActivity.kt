@@ -1,7 +1,6 @@
 package com.example.storagesentinel
 
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -53,6 +52,12 @@ import java.io.File
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Try to initialize an optional Flutter engine and register platform channels.
+        // This uses a reflection-based approach so the app can compile without a
+        // Flutter dependency; if Flutter is available at runtime the channels will
+        // be registered and the Flutter UI can communicate with the native scanner.
+        FlutterIntegration.setupFlutterIfAvailable(this)
+
         setContent {
             StorageSentinelTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = colorScheme.background) {
@@ -136,7 +141,12 @@ fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
                 SettingsScreen(
                     onBack = { viewModel.onHideSettings() },
                     ignoreList = uiState.ignoreList,
-                    onRemoveFromIgnoreList = { viewModel.onRemoveFromIgnoreList(it) }
+                    onRemoveFromIgnoreList = { viewModel.onRemoveFromIgnoreList(it) },
+                    isProUser = uiState.isProUser,
+                    isScheduledCleaningEnabled = uiState.isScheduledCleaningEnabled,
+                    scheduledCleaningFrequency = uiState.scheduledCleaningFrequency,
+                    onScheduledCleaningEnabledChanged = viewModel::onScheduledCleaningEnabledChanged,
+                    onScheduledCleaningFrequencyChanged = viewModel::onScheduledCleaningFrequencyChanged
                 )
             } else if (uiState.isShowingDuplicates) {
                 val duplicateFiles = uiState.scanResults[JunkType("Duplicate Files")]
@@ -145,6 +155,8 @@ fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
                 DuplicateFilesScreen(
                     duplicateFiles = duplicateFiles,
                     onBack = { viewModel.onBackFromDetails() },
+                    isProUser = uiState.isProUser,
+                    onProUpgradeClick = { viewModel.onShowProUpgradeDialog() },
                     onItemSelectionChanged = { item, isSelected ->
                         viewModel.onItemSelectionChanged(JunkType("Duplicate Files"), item, isSelected)
                     }
@@ -187,7 +199,8 @@ fun ScannerScreen(viewModel: ScannerViewModel = hiltViewModel()) {
                             onCleanClick = { viewModel.onShowConfirmDialog() },
                             onCategoryClick = { viewModel.onCategoryClick(it) },
                             onCategorySelectionChanged = { jt, isSelected -> viewModel.onCategorySelectionChanged(jt, isSelected) },
-                            onProUpgradeClick = { viewModel.onShowProUpgradeDialog() }
+                            onProUpgradeClick = { viewModel.onShowProUpgradeDialog() },
+                            onSaveDefaults = { viewModel.onSaveDefaults() }
                         )
                         ScanState.CLEAN_COMPLETE -> PostCleanSummary(
                             cleanedItems = uiState.cleanedItems,

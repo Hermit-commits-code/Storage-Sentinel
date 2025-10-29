@@ -144,13 +144,19 @@ class _ScannerHomeState extends State<ScannerHome> {
 Stream<Map<String, dynamic>> _mockEventStream() async* {
   int batch = 0;
   while (batch < 5) {
-    final items = List.generate(3, (i) => {
-      'id': 'item-${batch}-$i',
-      'path': '/storage/emulated/0/Download/file_${batch}_$i.jpg',
-      'sizeBytes': (i + 1) * 1024
-    });
+    final items = List.generate(
+        3,
+        (i) => {
+              'id': 'item-${batch}-$i',
+              'path': '/storage/emulated/0/Download/file_${batch}_$i.jpg',
+              'sizeBytes': (i + 1) * 1024
+            });
     yield {'type': 'scanBatch', 'batch': batch, 'items': items};
-    yield {'type': 'progress', 'scanId': 'local', 'percent': ((batch + 1) * 20).clamp(0, 100)};
+    yield {
+      'type': 'progress',
+      'scanId': 'local',
+      'percent': ((batch + 1) * 20).clamp(0, 100)
+    };
     await Future.delayed(Duration(seconds: 1));
     batch++;
   }

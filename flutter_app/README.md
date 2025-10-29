@@ -1,4 +1,4 @@
-Flutter UI prototype for Storage Sentinel.
+# Flutter UI prototype for Storage Sentinel
 
 This module is a minimal scaffold that connects to native code via MethodChannel and EventChannel:
 
