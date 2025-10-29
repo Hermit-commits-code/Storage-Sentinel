@@ -52,6 +52,12 @@ import java.io.File
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Try to initialize an optional Flutter engine and register platform channels.
+        // This uses a reflection-based approach so the app can compile without a
+        // Flutter dependency; if Flutter is available at runtime the channels will
+        // be registered and the Flutter UI can communicate with the native scanner.
+        FlutterIntegration.setupFlutterIfAvailable(this)
+
         setContent {
             StorageSentinelTheme {
                 Surface(modifier = Modifier.fillMaxSize(), color = colorScheme.background) {
