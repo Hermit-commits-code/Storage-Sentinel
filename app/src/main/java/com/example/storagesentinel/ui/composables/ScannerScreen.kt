@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -94,8 +95,6 @@ fun ScannerScreen(
             TopAppBar(
                 title = { Text("Storage Sentinel") },
                 actions = {
-                    Button(onClick = { scannerViewModel.developerCreateFakeJunk() }) { Text("Create Junk") }
-                    Button(onClick = { scannerViewModel.developerToggleProStatus() }) { Text(if (uiState.isProUser) "PRO" else "FREE") }
                     IconButton(onClick = onNavigateToAnalytics) { Icon(Icons.Default.Info, "Analytics") }
                     IconButton(onClick = onNavigateToSettings) { Icon(Icons.Default.Settings, "Settings") }
                 }
@@ -128,6 +127,15 @@ fun ScannerScreen(
     ) { paddingValues ->
         Column(modifier = modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 16.dp)) {
             SummaryHeader(uiState, scannerViewModel)
+            
+            // Usage limits banner for free users
+            if (!uiState.isProUser && uiState.remainingScansToday >= 0) {
+                UsageLimitsBanner(
+                    remainingScans = uiState.remainingScansToday,
+                    onUpgradeClick = { scannerViewModel.showProUpgradeDialog() }
+                )
+            }
+            
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             if (uiState.scanResults.isEmpty() && !uiState.isScanning) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -236,4 +244,56 @@ private fun CategoryCard(
             }
         }
     }
+}
+
+
+@Composable
+private fun UsageLimitsBanner(
+    remainingScans: Int,
+    onUpgradeClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (remainingScans == 0) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.secondaryContainer
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (remainingScans > 0) {
+                        "Free Tier: $remainingScans scan${if (remainingScans != 1) "s" else ""} remaining today"
+                    } else {
+                        "Daily scan limit reached"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = if (remainingScans > 0) {
+                        "Upgrade to PRO for unlimited scans"
+                    } else {
+                        "Upgrade to PRO for unlimited scanning"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Button(
+                onClick = onUpgradeClick,
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text("Upgrade")
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(8.dp))
 }

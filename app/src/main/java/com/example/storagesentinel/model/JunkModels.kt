@@ -34,5 +34,7 @@ data class ScannerUiState(
     val scanResults: List<CategorySelection> = emptyList(),
     val isProUser: Boolean = false, // The key flag for monetization
     val showProUpgradeDialog: Boolean = false,
-    val totalSelectedSize: Long = 0L // The new property for our summary
+    val totalSelectedSize: Long = 0L, // The new property for our summary
+    val remainingScansToday: Int = 3, // Free tier usage tracking
+    val canScan: Boolean = true // Whether user can initiate a scan
 )

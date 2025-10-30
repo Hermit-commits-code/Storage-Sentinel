@@ -16,6 +16,7 @@ import androidx.navigation.navArgument
 import com.example.storagesentinel.ui.composables.AnalyticsScreen
 import com.example.storagesentinel.ui.composables.DuplicateFilesScreen
 import com.example.storagesentinel.ui.composables.JunkListScreen
+import com.example.storagesentinel.ui.composables.PrivacyPolicyScreen
 import com.example.storagesentinel.ui.composables.ScannerScreen
 import com.example.storagesentinel.ui.composables.SettingsScreen
 import com.example.storagesentinel.ui.theme.StorageSentinelTheme
@@ -27,6 +28,9 @@ class MainActivity : ComponentActivity() {
     }
     
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Switch from splash screen theme to main theme
+        setTheme(R.style.Theme_StorageSentinel)
+        
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
@@ -47,7 +51,13 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("settings") { 
-                            SettingsScreen(onNavigateBack = { navController.popBackStack() })
+                            SettingsScreen(
+                                onNavigateBack = { navController.popBackStack() },
+                                onNavigateToPrivacyPolicy = { navController.navigate("privacy_policy") }
+                            )
+                        }
+                        composable("privacy_policy") {
+                            PrivacyPolicyScreen(onNavigateBack = { navController.popBackStack() })
                         }
                         composable("analytics") { 
                             AnalyticsScreen(onNavigateBack = { navController.popBackStack() })

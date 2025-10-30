@@ -39,7 +39,7 @@ class NotificationService(private val context: Context) {
     
     fun showSmartRecommendation(cleanableSize: Long, fileCount: Int) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground) // You'll need to add a proper icon
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("💡 Storage Optimization Available")
             .setContentText("You can free up ${formatFileSize(cleanableSize)} by cleaning $fileCount files")
             .setStyle(NotificationCompat.BigTextStyle()
@@ -59,7 +59,7 @@ class NotificationService(private val context: Context) {
     
     fun showCleaningComplete(freedSize: Long, filesRemoved: Int) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("✅ Cleaning Complete")
             .setContentText("Freed ${formatFileSize(freedSize)} by removing $filesRemoved files")
             .setStyle(NotificationCompat.BigTextStyle()
@@ -79,7 +79,7 @@ class NotificationService(private val context: Context) {
     
     fun showScheduledCleanReminder(estimatedCleanableSize: Long) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("🔄 Scheduled Cleaning Ready")
             .setContentText("Ready to clean approximately ${formatFileSize(estimatedCleanableSize)}")
             .setPriority(NotificationCompat.PRIORITY_LOW)

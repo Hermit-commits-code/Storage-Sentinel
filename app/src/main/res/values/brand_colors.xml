@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Storage Sentinel Brand Colors -->
+    <color name="primary_shield_blue">#19478D</color>
+    <color name="secondary_shield_blue">#3D7AD9</color>
+    <color name="container_gray">#BCC5CB</color>
+    <color name="container_highlight">#EBEFF1</color>
+    <color name="eye_detail_blue">#1C6AAB</color>
+    
+    <!-- Splash Screen Colors -->
+    <color name="splash_background">#19478D</color>
+    <color name="splash_text">#EBEFF1</color>
+</resources>

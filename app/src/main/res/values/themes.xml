@@ -2,4 +2,13 @@
 <resources>
 
     <style name="Theme.StorageSentinel" parent="android:Theme.Material.Light.NoActionBar" />
+    
+    <!-- Splash Screen Theme - Traditional approach -->
+    <style name="Theme.StorageSentinel.SplashScreen" parent="Theme.StorageSentinel">
+        <item name="android:windowBackground">@drawable/splash_screen</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowIsTranslucent">false</item>
+    </style>
+    
 </resources>

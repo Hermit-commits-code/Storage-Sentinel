@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,7 +50,10 @@ import com.example.storagesentinel.viewmodel.SettingsViewModelFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onNavigateBack: () -> Unit) {
+fun SettingsScreen(
+    onNavigateBack: () -> Unit,
+    onNavigateToPrivacyPolicy: () -> Unit = {}
+) {
     val context = LocalContext.current
     val application = context.applicationContext as Application
     val factory = SettingsViewModelFactory(application)
@@ -79,6 +83,32 @@ fun SettingsScreen(onNavigateBack: () -> Unit) {
             LargeFileThresholdSetting(uiState.largeFileThresholdMb) { viewModel.setLargeFileThreshold(it) }
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
             AutoCleanSettings(uiState, viewModel)
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            
+            // Privacy Policy Section
+            Text(
+                text = "Privacy & Legal",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onNavigateToPrivacyPolicy() }
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Privacy Policy",
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = "View Privacy Policy"
+                )
+            }
         }
     }
 }

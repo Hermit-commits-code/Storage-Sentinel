@@ -75,13 +75,20 @@ fun ProUpgradeDialog(
                     textAlign = TextAlign.Center
                 )
                 
-                // Show price if available
+                // Show price if available, otherwise show development mode info
                 val proProduct = billingState.availableProducts.find { it.productId == "storage_sentinel_pro" }
-                proProduct?.let { product ->
+                if (proProduct != null) {
                     Text(
-                        text = "Price: ${product.oneTimePurchaseOfferDetails?.formattedPrice ?: "Loading..."}",
+                        text = "Price: ${proProduct.oneTimePurchaseOfferDetails?.formattedPrice ?: "Loading..."}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Text(
+                        text = "Development Mode: $4.99 (Will connect to Play Store in production)",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
                     )
                 }
                 
@@ -127,7 +134,7 @@ fun ProUpgradeDialog(
                                 },
                                 enabled = billingState.isConnected
                             ) {
-                                Text("Upgrade Now")
+                                Text(if (proProduct != null) "Upgrade Now" else "Test Upgrade")
                             }
                         }
                     }

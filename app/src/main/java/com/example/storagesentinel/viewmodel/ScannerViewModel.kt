@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.storagesentinel.api.ScannerApi
 import com.example.storagesentinel.billing.BillingManager
 import com.example.storagesentinel.managers.SettingsManager
+import com.example.storagesentinel.managers.UsageLimitsManager
 import com.example.storagesentinel.model.CategorySelection
 import com.example.storagesentinel.model.JunkCategory
 import com.example.storagesentinel.model.JunkItem
@@ -26,6 +27,7 @@ class ScannerViewModel(application: Application) : AndroidViewModel(application)
 
     private val settingsManager = SettingsManager(application)
     private val scannerService = ScannerService(application, settingsManager)
+    private val usageLimitsManager = UsageLimitsManager(application)
     
     // Get billing manager from application
     private val billingManager = (application as com.example.storagesentinel.StorageSentinelApplication).billingManager
@@ -42,10 +44,35 @@ class ScannerViewModel(application: Application) : AndroidViewModel(application)
                 _uiState.update { it.copy(isProUser = isPro) }
             }
         }
+        
+        // Listen to usage limits
+        viewModelScope.launch {
+            usageLimitsManager.usageLimits.collect { limits ->
+                _uiState.update { state -> 
+                    state.copy(
+                        remainingScansToday = if (state.isProUser) -1 else limits.remainingScansToday(),
+                        canScan = state.isProUser || !limits.hasReachedDailyLimit() || limits.isNewDay()
+                    )
+                }
+            }
+        }
     }
 
     fun startScan() {
         viewModelScope.launch {
+            val currentState = _uiState.value
+            
+            // Check usage limits for free users
+            if (!currentState.isProUser) {
+                val canScan = usageLimitsManager.canPerformScan(false)
+                if (!canScan) {
+                    _uiState.update { it.copy(showProUpgradeDialog = true) }
+                    return@launch
+                }
+                // Record scan attempt
+                usageLimitsManager.recordScanAttempt()
+            }
+            
             scannerService.scan()
                 .onStart {
                     _uiState.update { it.copy(isScanning = true, scanResults = emptyList(), totalSelectedSize = 0L) }
@@ -121,22 +148,8 @@ class ScannerViewModel(application: Application) : AndroidViewModel(application)
     fun dismissProUpgradeDialog() {
         _uiState.update { it.copy(showProUpgradeDialog = false) }
     }
-
-    fun developerToggleProStatus() {
-        viewModelScope.launch {
-            val currentStatus = billingManager.isProVersion.first()
-            if (currentStatus) {
-                billingManager.resetProVersion()
-            } else {
-                billingManager.simulateProPurchase()
-            }
-        }
-    }
-
-    // New function for the UI to call
-    fun developerCreateFakeJunk() {
-        viewModelScope.launch {
-            scannerService.developer_createFakeJunk()
-        }
+    
+    fun showProUpgradeDialog() {
+        _uiState.update { it.copy(showProUpgradeDialog = true) }
     }
 }
