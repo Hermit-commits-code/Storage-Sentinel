@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.storagesentinel.api.ScannerApi
+import com.example.storagesentinel.billing.BillingManager
 import com.example.storagesentinel.managers.SettingsManager
 import com.example.storagesentinel.model.CategorySelection
 import com.example.storagesentinel.model.JunkCategory
@@ -25,6 +26,9 @@ class ScannerViewModel(application: Application) : AndroidViewModel(application)
 
     private val settingsManager = SettingsManager(application)
     private val scannerService = ScannerService(application, settingsManager)
+    
+    // Get billing manager from application
+    private val billingManager = (application as com.example.storagesentinel.StorageSentinelApplication).billingManager
 
     private val _uiState = MutableStateFlow(ScannerUiState())
     val uiState: StateFlow<ScannerUiState> = _uiState.asStateFlow()
@@ -32,8 +36,9 @@ class ScannerViewModel(application: Application) : AndroidViewModel(application)
     private val accumulatedResults = mutableListOf<JunkItem>()
 
     init {
+        // Listen to billing manager for pro status instead of settings
         viewModelScope.launch {
-            settingsManager.isProUser.collect { isPro ->
+            billingManager.isProVersion.collect { isPro ->
                 _uiState.update { it.copy(isProUser = isPro) }
             }
         }
@@ -117,19 +122,14 @@ class ScannerViewModel(application: Application) : AndroidViewModel(application)
         _uiState.update { it.copy(showProUpgradeDialog = false) }
     }
 
-    fun upgradeToProUser() {
-        viewModelScope.launch {
-            // For now, simulate the upgrade by setting PRO status to true
-            // In production, this would integrate with Google Play Billing
-            settingsManager.setProUser(true)
-            Log.d("ViewModel", "User upgraded to PRO")
-        }
-    }
-
     fun developerToggleProStatus() {
         viewModelScope.launch {
-            val currentStatus = settingsManager.isProUser.first()
-            settingsManager.setProUser(!currentStatus)
+            val currentStatus = billingManager.isProVersion.first()
+            if (currentStatus) {
+                billingManager.resetProVersion()
+            } else {
+                billingManager.simulateProPurchase()
+            }
         }
     }
 

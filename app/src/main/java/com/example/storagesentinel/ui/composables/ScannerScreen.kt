@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.storagesentinel.billing.BillingManager
 import com.example.storagesentinel.model.CategorySelection
 import com.example.storagesentinel.model.JunkCategory
 import com.example.storagesentinel.model.ScannerUiState
@@ -64,6 +65,7 @@ import com.example.storagesentinel.viewmodel.ScannerViewModel
 fun ScannerScreen(
     modifier: Modifier = Modifier, 
     scannerViewModel: ScannerViewModel = viewModel(), 
+    billingManager: BillingManager,
     onNavigateToSettings: () -> Unit,
     onNavigateToAnalytics: () -> Unit,
     onNavigateToDuplicates: () -> Unit,
@@ -82,8 +84,8 @@ fun ScannerScreen(
 
     if (uiState.showProUpgradeDialog) {
         ProUpgradeDialog(
-            onDismiss = { scannerViewModel.dismissProUpgradeDialog() },
-            onUpgrade = { scannerViewModel.upgradeToProUser() }
+            billingManager = billingManager,
+            onDismiss = { scannerViewModel.dismissProUpgradeDialog() }
         )
     }
 

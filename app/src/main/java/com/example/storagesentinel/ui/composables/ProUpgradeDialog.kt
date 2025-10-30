@@ -1,5 +1,6 @@
 package com.example.storagesentinel.ui.composables
 
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,21 +11,43 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.example.storagesentinel.billing.BillingManager
+import com.example.storagesentinel.billing.PurchaseState
 
 @Composable
-fun ProUpgradeDialog(onDismiss: () -> Unit, onUpgrade: () -> Unit = {}) {
+fun ProUpgradeDialog(
+    billingManager: BillingManager, 
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val billingState by billingManager.billingState.collectAsState()
+    
+    // Handle purchase success
+    LaunchedEffect(billingState.purchaseState) {
+        if (billingState.purchaseState == PurchaseState.SUCCESS) {
+            billingManager.clearPurchaseState()
+            onDismiss()
+        }
+    }
+    
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -51,6 +74,27 @@ fun ProUpgradeDialog(onDismiss: () -> Unit, onUpgrade: () -> Unit = {}) {
                     style = MaterialTheme.typography.bodyMedium,
                     textAlign = TextAlign.Center
                 )
+                
+                // Show price if available
+                val proProduct = billingState.availableProducts.find { it.productId == "storage_sentinel_pro" }
+                proProduct?.let { product ->
+                    Text(
+                        text = "Price: ${product.oneTimePurchaseOfferDetails?.formattedPrice ?: "Loading..."}",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                
+                // Show error message if any
+                billingState.errorMessage?.let { error ->
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -59,11 +103,33 @@ fun ProUpgradeDialog(onDismiss: () -> Unit, onUpgrade: () -> Unit = {}) {
                     TextButton(onClick = onDismiss) {
                         Text("No Thanks")
                     }
-                    TextButton(onClick = {
-                        onUpgrade()
-                        onDismiss()
-                    }) {
-                        Text("Upgrade Now")
+                    
+                    when (billingState.purchaseState) {
+                        PurchaseState.PURCHASING -> {
+                            Button(onClick = { }) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            }
+                        }
+                        else -> {
+                            Button(
+                                onClick = {
+                                    val activity = context as? ComponentActivity
+                                    if (activity != null) {
+                                        billingManager.purchaseProVersion(activity)
+                                    } else {
+                                        // Fallback for testing
+                                        billingManager.simulateProPurchase()
+                                        onDismiss()
+                                    }
+                                },
+                                enabled = billingState.isConnected
+                            ) {
+                                Text("Upgrade Now")
+                            }
+                        }
                     }
                 }
             }

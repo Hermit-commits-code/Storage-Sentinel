@@ -21,6 +21,11 @@ import com.example.storagesentinel.ui.composables.SettingsScreen
 import com.example.storagesentinel.ui.theme.StorageSentinelTheme
 
 class MainActivity : ComponentActivity() {
+    
+    private val billingManager by lazy { 
+        (application as StorageSentinelApplication).billingManager 
+    }
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -34,6 +39,7 @@ class MainActivity : ComponentActivity() {
                     NavHost(navController = navController, startDestination = "scanner") {
                         composable("scanner") { 
                             ScannerScreen(
+                                billingManager = billingManager,
                                 onNavigateToSettings = { navController.navigate("settings") },
                                 onNavigateToAnalytics = { navController.navigate("analytics") },
                                 onNavigateToDuplicates = { navController.navigate("duplicate_files") },

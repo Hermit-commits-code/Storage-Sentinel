@@ -17,7 +17,11 @@
     <!-- For notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Google Play Billing permission -->
+    <uses-permission android:name="com.android.vending.BILLING" />
+
     <application
+        android:name=".StorageSentinelApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
